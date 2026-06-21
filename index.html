@@ -4297,5 +4297,16 @@ function App() {
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(React.createElement(App));
 </script>
+ <script>
+window.addEventListener('load', function() {
+  setTimeout(function() {
+    var btn = document.createElement('a');
+    btn.href = 'nes-suivi-multi.html';
+    btn.textContent = '→ SUIVI MULTI-RAPPORTS';
+    btn.style.cssText = 'position:fixed;bottom:16px;right:16px;z-index:9999;background:#070B08;border:1px solid #15ED4F;border-radius:10px;padding:10px 16px;color:#15ED4F;font-size:13px;font-weight:700;text-decoration:none;font-family:sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.4)';
+    document.body.appendChild(btn);
+  }, 500);
+});
+</script>
 </body>
 </html>
