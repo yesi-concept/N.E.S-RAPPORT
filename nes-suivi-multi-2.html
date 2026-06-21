@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>N.E.S — Suivi Joueur</title>
+<style>
+  :root {
+    --bg: #0a0e0c;
+    --panel: #0d1210;
+    --border-soft: #1c2420;
+    --text: #f4f4f5;
+    --text-dim: #a1a1aa;
+    --text-faint: #71717a;
+    --emerald: #10b981;
+    --emerald-soft: rgba(16,185,129,0.12);
+    --emerald-border: rgba(16,185,129,0.3);
+    --lime: #84cc16;
+    --yellow: #eab308;
+    --cyan: #22d3ee;
+    --pink: #f472b6;
+    --amber: #f59e0b;
+    --rose: #f43f5e;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 14px; }
+
+  /* ===== App shell (hidden on print) ===== */
+  .header { border-bottom: 1px solid var(--border-soft); background: var(--panel); position: sticky; top: 0; z-index: 10; }
+  .header-inner { max-width: 1080px; margin: 0 auto; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-icon { width: 36px; height: 36px; border-radius: 8px; background: var(--emerald-soft); border: 1px solid var(--emerald-border); display: flex; align-items: center; justify-content: center; color: var(--emerald); font-weight: 800; font-size: 16px; }
+  .brand h1 { font-size: 14px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  .brand h1 span { color: var(--emerald); }
+  .brand p { font-size: 10px; color: var(--text-faint); margin: 0; }
+  .header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .save-indicator { font-size: 11px; font-family: monospace; min-width: 90px; text-align: right; color: var(--text-faint); }
+  .save-indicator.saved { color: var(--emerald); }
+  .save-indicator.error { color: var(--rose); }
+
+  select.player-select {
+    background: #131817; border: 1px solid #2d362f; color: var(--text);
+    border-radius: 8px; padding: 7px 10px; font-size: 12px; font-family: inherit; max-width: 160px;
+  }
+  select.player-select:focus { outline: none; border-color: var(--emerald); }
+
+  .tabs { display: flex; gap: 4px; background: #131313; border: 1px solid var(--border-soft); border-radius: 10px; padding: 4px; }
+  .tab-btn { border: none; background: transparent; cursor: pointer; padding: 7px 14px; border-radius: 7px; font-size: 12px; font-weight: 500; color: var(--text-faint); transition: all 0.15s; }
+  .tab-btn.active { background: var(--emerald-soft); color: var(--emerald); }
+
+  .container { max-width: 1080px; margin: 0 auto; padding: 24px 20px; }
+  .card { border: 1px solid var(--border-soft); background: var(--panel); border-radius: 12px; padding: 16px; }
+  .card + .card { margin-top: 16px; }
+  .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #d4d4d8; margin: 0 0 12px 0; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  @media (max-width: 640px) { .grid-3 { grid-template-columns: repeat(2, 1fr); } }
+
+  label.field { display: block; }
+  label.field span { display: block; font-size: 11px; color: var(--text-faint); margin-bottom: 4px; }
+  input[type="text"], input[type="number"] { width: 100%; background: #131817; border: 1px solid #2d362f; border-radius: 7px; padding: 7px 10px; color: var(--text); font-size: 13px; font-family: inherit; }
+  input[type="number"] { font-family: monospace; text-align: right; }
+  input:focus { outline: none; border-color: var(--emerald); box-shadow: 0 0 0 1px var(--emerald-border); }
+  input::placeholder { color: #52525b; }
+
+  .num-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 0; }
+  .num-row span { font-size: 12px; color: var(--text-dim); flex: 1; }
+  .num-row input { width: 64px; flex-shrink: 0; }
+
+  .group-box { background: rgba(255,255,255,0.02); border: 1px solid var(--border-soft); border-radius: 9px; padding: 12px; margin-top: 10px; }
+  .group-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .group-head .label { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #d4d4d8; }
+  .group-head .avg { font-size: 12px; font-family: monospace; color: var(--text-faint); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .field-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+
+  .btn { border: 1px solid var(--emerald-border); background: var(--emerald-soft); color: var(--emerald); border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background 0.15s; }
+  .btn:hover { background: rgba(16,185,129,0.22); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-outline { border: 1px solid #2d362f; background: transparent; color: var(--text-dim); }
+  .btn-outline:hover { background: rgba(255,255,255,0.04); }
+  .btn-ghost { background: transparent; border: none; color: #52525b; font-size: 11px; cursor: pointer; padding: 4px; }
+  .btn-ghost:hover { color: var(--rose); }
+
+  .report-card { border: 1px solid var(--border-soft); background: var(--panel); border-radius: 12px; overflow: hidden; margin-top: 12px; }
+  .report-head { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; cursor: pointer; background: transparent; border: none; color: inherit; text-align: left; }
+  .report-head:hover { background: rgba(255,255,255,0.02); }
+  .report-head-left { display: flex; align-items: center; gap: 12px; }
+  .report-num { width: 24px; height: 24px; border-radius: 50%; background: var(--emerald-soft); border: 1px solid var(--emerald-border); color: var(--emerald); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .report-head-title { font-size: 13px; font-weight: 500; color: #e4e4e7; margin: 0; }
+  .report-head-sub { font-size: 11px; color: var(--text-faint); margin: 2px 0 0 0; }
+  .report-head-sub .ng { color: var(--emerald); font-family: monospace; margin-left: 6px; }
+  .report-head-right { display: flex; align-items: center; gap: 10px; }
+  .chev { color: var(--text-faint); font-size: 12px; }
+  .report-body { padding: 0 16px 16px; border-top: 1px solid var(--border-soft); }
+
+  .empty-state { border: 1px dashed #2d362f; background: rgba(255,255,255,0.015); border-radius: 12px; padding: 36px 20px; text-align: center; }
+  .empty-state p { margin: 0; color: var(--text-faint); font-size: 13px; }
+  .empty-state p.small { font-size: 11px; color: #52525b; margin-top: 4px; }
+
+  textarea.note-input { width: 100%; background: #131817; border: 1px solid #2d362f; border-radius: 7px; padding: 8px 10px; color: var(--text); font-size: 13px; font-family: inherit; resize: vertical; min-height: 50px; }
+  textarea.note-input:focus { outline: none; border-color: var(--emerald); }
+
+  .reset-row { display: flex; justify-content: flex-end; padding-top: 8px; }
+  .reset-link { font-size: 11px; color: #52525b; background: none; border: none; cursor: pointer; }
+  .reset-link:hover { color: var(--rose); }
+  .max-note { font-size: 11px; color: var(--text-faint); text-align: center; padding: 6px 0; }
+
+  /* ===== Modal nouveau joueur ===== */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 20px; }
+  .modal-box { background: var(--panel); border: 1px solid var(--border-soft); border-radius: 12px; padding: 20px; max-width: 360px; width: 100%; }
+  .modal-box h3 { font-size: 14px; margin: 0 0 12px 0; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+  /* ====================================================================
+     FICHE D'EXPORT (synthèse officielle) — style "N.E.S VISION"
+     Visible uniquement à l'écran si activée, et toujours en @media print
+     ==================================================================== */
+  .sheet-wrap { display: none; }
+  .sheet-wrap.active { display: block; }
+
+  .sheet {
+    background: #ffffff;
+    color: #18181b;
+    border-radius: 14px;
+    padding: 16px 20px;
+    border: 1px solid #e4e4e7;
+    max-width: 1080px;
+    margin: 0 auto;
+  }
+  .sheet-header {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+    border-bottom: 1px solid #e4e4e7; padding-bottom: 10px; margin-bottom: 12px;
+  }
+  .sheet-brand { display: flex; align-items: center; gap: 10px; }
+  .sheet-brand-icon {
+    width: 34px; height: 34px; border-radius: 9px;
+    background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.35);
+    display: flex; align-items: center; justify-content: center; color: #059669; font-weight: 800; font-size: 15px;
+  }
+  .sheet-brand h2 { font-size: 16px; margin: 0; letter-spacing: -0.01em; color: #18181b; }
+  .sheet-brand h2 span { color: #059669; }
+  .sheet-brand p { font-size: 10px; color: #71717a; margin: 1px 0 0 0; letter-spacing: 0.03em; }
+  .sheet-meta { display: flex; gap: 22px; flex-wrap: wrap; }
+  .sheet-meta-item { font-size: 10px; color: #71717a; text-transform: uppercase; letter-spacing: 0.03em; }
+  .sheet-meta-item div { font-size: 12px; color: #27272a; text-transform: none; font-weight: 600; margin-top: 2px; }
+
+  .sheet-grid { display: grid; grid-template-columns: 230px 1fr 280px; gap: 14px; align-items: start; }
+  @media (max-width: 900px) { .sheet-grid { grid-template-columns: 1fr; } }
+
+  .sheet-box { border: 1px solid #e4e4e7; background: #fafafa; border-radius: 11px; padding: 11px 14px; }
+  .sheet-box-title { display:flex; align-items:center; gap:6px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #059669; margin: 0 0 10px 0; }
+  .sheet-box-title .ic { font-size: 12px; }
+
+  .sheet-photo { width: 100%; aspect-ratio: 1; border-radius: 9px; background: #f0fdf6; border: 1px solid #e4e4e7; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; overflow:hidden; }
+  .sheet-photo span { font-size: 26px; font-weight: 800; color: #a7d8c2; }
+  .sheet-player-name { font-size: 17px; font-weight: 800; margin: 0; line-height: 1.15; color: #18181b; }
+  .sheet-profile-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 11.5px; border-bottom: 1px solid #f0f0f1; }
+  .sheet-profile-row:last-child { border-bottom: none; }
+  .sheet-profile-row .k { color: #71717a; display:flex; align-items:center; gap:5px; }
+  .sheet-profile-row .v { color: #27272a; font-weight: 600; }
+  .sheet-note-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e4e4e7; text-align: center; }
+  .sheet-note-block .lbl { font-size: 9.5px; color: #71717a; text-transform: uppercase; letter-spacing: 0.03em; margin: 0 0 4px 0; }
+  .sheet-note-block .big { font-size: 32px; font-weight: 800; color: #059669; }
+  .sheet-note-block .of10 { font-size: 12px; color: #71717a; }
+
+  .sheet-chart-row { display:flex; gap:14px; align-items: flex-start; }
+  .sheet-chart-canvas-wrap { flex: 1; min-width: 0; }
+  .sheet-chart-side { width: 110px; flex-shrink: 0; text-align: center; }
+  .sheet-chart-side .lbl { font-size: 9px; color: #71717a; text-transform: uppercase; letter-spacing: 0.03em; }
+  .sheet-chart-side .val { font-size: 19px; font-weight: 800; margin: 3px 0 10px; color: #18181b; }
+  .sheet-chart-side .val.green { color: #059669; }
+  .sheet-chart-side .tendance { font-size: 10px; color: #059669; font-weight:700; display:flex; align-items:center; justify-content:center; gap:3px; }
+
+  .sheet-status-pill { font-size: 13px; font-weight: 800; margin: 0 0 6px 0; }
+  .sheet-status-desc { font-size: 11px; color: #52525b; line-height: 1.45; margin: 0 0 12px 0; }
+  .sheet-index-block { text-align:center; padding-top: 10px; border-top: 1px solid #e4e4e7; }
+  .sheet-index-block .lbl { font-size: 9.5px; color: #71717a; text-transform: uppercase; letter-spacing: 0.03em; }
+  .sheet-index-block .num { font-size: 28px; font-weight: 800; color: #059669; margin: 3px 0; }
+  .sheet-index-block .stars { color: #059669; font-size: 13px; letter-spacing: 2px; }
+
+  .sheet-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  .sheet-table th { text-align: left; font-size: 9.5px; color: #71717a; text-transform: uppercase; letter-spacing: 0.03em; padding: 0 6px 8px; font-weight: 600; }
+  .sheet-table th:not(:first-child) { text-align: center; }
+  .sheet-table td { padding: 7px 6px; border-top: 1px solid #f0f0f1; color: #27272a; }
+  .sheet-table td:not(:first-child) { text-align: center; font-family: monospace; }
+  .sheet-table td.name { display: flex; align-items: center; gap: 6px; font-weight: 600; color: #27272a; }
+  .sheet-bar-cell { display: flex; align-items: center; justify-content: center; gap: 5px; }
+  .sheet-bar-mini { width: 46px; height: 5px; border-radius: 3px; background: #e4e4e7; overflow: hidden; }
+  .sheet-bar-mini > div { height: 100%; background: linear-gradient(90deg,#84cc16,#059669); }
+  .sheet-evo-up { color: #059669; font-weight: 700; }
+  .sheet-evo-flat { color: #a1a1aa; }
+  .sheet-evo-down { color: #d97706; }
+
+  .sheet-coherence-ring { display:flex; justify-content:center; padding: 6px 0 4px; }
+  .sheet-coherence-label { text-align:center; font-size: 11px; font-weight: 700; color: #059669; margin: 8px 0 0; }
+  .sheet-coherence-desc { font-size: 11px; color: #52525b; line-height: 1.45; text-align:center; margin: 6px 0 0; }
+
+  .sheet-list { list-style: none; margin: 0; padding: 0; font-size: 11.5px; }
+  .sheet-list li { display:flex; gap:7px; padding: 4px 0; color: #3f3f46; align-items: flex-start; }
+  .sheet-list li .b { flex-shrink:0; margin-top:1px; }
+  .sheet-list.good li .b { color:#059669; }
+  .sheet-list.warn li .b { color:#d97706; }
+
+  .sheet-proj-row { display:flex; align-items: center; justify-content: space-between; font-size: 11.5px; padding: 6px 0; gap: 10px; }
+  .sheet-proj-row .lbl { color:#52525b; min-width: 110px; }
+  .sheet-proj-row .barwrap { flex:1; height:6px; background:#e4e4e7; border-radius:4px; overflow:hidden; }
+  .sheet-proj-row .barwrap > div { height:100%; background: linear-gradient(90deg,#84cc16,#059669); }
+  .sheet-proj-row .num { font-weight: 700; min-width: 40px; text-align:right; color: #18181b; }
+
+  .sheet-quote { font-size: 12px; color: #3f3f46; line-height: 1.6; font-style: italic; margin: 0; }
+  .sheet-quote .qmark { color: #059669; font-size: 18px; }
+
+  .sheet-final-pill {
+    display:flex; align-items:center; gap:8px; justify-content:center;
+    background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.4);
+    border-radius: 9px; padding: 11px; font-size: 14px; font-weight: 800; color: #059669; margin-bottom: 10px;
+  }
+  .sheet-final-desc { font-size: 11px; color: #52525b; line-height: 1.45; margin:0; }
+
+  .sheet-footer { text-align:center; font-size: 9.5px; color: #a1a1aa; letter-spacing: 0.08em; margin-top: 18px; padding-top: 12px; border-top: 1px solid #f0f0f1; text-transform: uppercase; }
+
+  .sheet-row-gap { margin-top: 10px; }
+  .sheet-cols-3 { display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .sheet-cols-2-1 { display:grid; grid-template-columns: 1.3fr 1fr; gap: 14px; }
+  @media (max-width: 900px) { .sheet-cols-3, .sheet-cols-2-1 { grid-template-columns: 1fr; } }
+
+  /* Activé juste avant impression : force la mise en page "desktop" (3 colonnes) même sur
+     mobile, où ces grilles repasseraient sinon en 1 colonne empilée (règle @media max-width:900px).
+     Pas de scale, pas de largeur fixe : le contenu garde sa taille naturelle et peut s'étaler
+     sur 2 pages si besoin — mais jamais coupé en plein milieu d'un bloc (voir page-break-inside). */
+  .print-fit .sheet-grid { grid-template-columns: 230px 1fr 280px !important; }
+  .print-fit .sheet-cols-2-1 { grid-template-columns: 1.3fr 1fr !important; }
+  .print-fit .sheet-cols-3 { grid-template-columns: 1fr 1fr 1fr !important; }
+  .print-fit .sheet { width: 1080px; max-width: 1080px; margin: 0 auto; }
+
+  /* ===== PRINT ===== */
+  @media print {
+    @page { size: A4 landscape; margin: 6mm; }
+    html, body { background: #fff; height: auto; width: auto; }
+    .header, .container > *:not(.sheet-wrap), .modal-overlay { display: none !important; }
+    .container { padding: 0; max-width: none; width: auto; }
+    .sheet-wrap:not(.print-fit) { display: block !important; width: auto; overflow: visible; }
+    .sheet-wrap.print-fit { display: block !important; }
+
+    /* Sans ceci, certains navigateurs pourraient altérer les nuances de gris des cartes
+       à l'impression. On garde ce réglage même en thème clair pour préserver les couleurs
+       d'accent (vert, ambre) et les fonds gris clairs des box. */
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+
+    .sheet {
+      border: none; border-radius: 0;
+      width: auto; max-width: none;
+      background: #ffffff !important;
+    }
+    .print-fit .sheet { width: 1080px !important; max-width: 1080px !important; }
+
+    /* Chaque bloc reste groupé, jamais coupé en plein milieu */
+    .sheet-header, .sheet-box, .sheet-grid, .sheet-cols-2-1, .sheet-cols-3,
+    .sheet-table, .sheet-table tr, .sheet-final-pill, .sheet-quote {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-icon">N</div>
+      <div>
+        <h1>N.E.S <span>SUIVI JOUEUR</span></h1>
+        <p>Méthode N.E.S + Y.E.S.I VIEW</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <a href="index.html" class="btn btn-outline" style="text-decoration:none;">← Rapport individuel</a>
+      <select class="player-select" id="playerSelect"></select>
+      <button class="btn btn-outline" id="newPlayerBtn">+ Joueur</button>
+      <span class="save-indicator" id="saveIndicator"></span>
+      <div class="tabs">
+        <button class="tab-btn active" id="tabSaisieBtn" onclick="setView('saisie')">Saisie</button>
+        <button class="tab-btn" id="tabSyntheseBtn" onclick="setView('synthese')">Synthèse</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container" id="container"></div>
+
+<script>
+/* ================== CONFIG / SCHEMA ================== */
+const STORAGE_KEY = "nes_suivi_multi_v1";
+
+const FIELD_GROUPS = {
+  technique: { label: "Technique", color: "#84cc16", fields: [
+    ["controle","Contrôle"], ["passe","Passe"], ["vitesseExec","Vitesse d'exécution"],
+    ["justesse","Justesse"], ["tir","Tir"]
+  ]},
+  tactique: { label: "Tactique", color: "#eab308", fields: [
+    ["placement","Placement"], ["deplacement","Déplacement"], ["replacementUrgence","Replacement d'urgence"],
+    ["choixJeu","Choix de jeu"], ["connaissancePoste","Connaissance du poste"]
+  ]},
+  physique: { label: "Physique", color: "#22d3ee", fields: [
+    ["vitesse","Vitesse"], ["explosivite","Explosivité"], ["volumeJeu","Volume de jeu"],
+    ["puissance","Puissance"], ["agressivite","Agressivité"]
+  ]},
+  influence: { label: "Influence", color: "#f472b6", fields: [
+    ["offensive","Influence offensive"], ["defensive","Influence défensive"]
+  ]},
+};
+
+const YESI_FIELDS = [
+  ["utilisation","Utilisation qualités hautes"],
+  ["connaissance","Connaissance des forces/faiblesses"],
+  ["investissement","Investissement personnel"],
+  ["perception","Perception de ses capacités"],
+  ["reflexion","Réflexion dans le jeu"],
+];
+
+const LINE_COLORS = ["#10b981", "#84cc16", "#22d3ee"];
+
+/* ================== STATE ================== */
+let store = { players: [], activeId: null }; // { players: [{id,name,age,...,reports:[...]}], activeId }
+let currentView = "saisie";
+let openReportIds = new Set();
+let sheetActive = false;
+
+function emptyPlayer(name) {
+  return { id: "p"+Date.now()+Math.random().toString(36).slice(2,7), name: name||"", age:"", nationalite:"", club:"", poste:"", piedFort:"", reports:[] };
+}
+
+function emptyReport() {
+  const r = {
+    id: "r" + Date.now() + Math.random().toString(36).slice(2,7),
+    matchDate: "", matchLabel: "",
+    technique: {}, tactique: {}, physique: {}, influence: {}, yesi: {},
+    signatureObservees: "", signatureExploitees: "",
+    citation: "", observationLibre: ""
+  };
+  Object.keys(FIELD_GROUPS).forEach(g => { FIELD_GROUPS[g].fields.forEach(([k]) => r[g][k] = ""); });
+  YESI_FIELDS.forEach(([k]) => r.yesi[k] = "");
+  return r;
+}
+
+function activePlayer() {
+  return store.players.find(p => p.id === store.activeId) || null;
+}
+
+/* ================== STORAGE ================== */
+function loadStore() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.players)) { store = parsed; return; }
+    }
+  } catch(e) {}
+  // migration depuis ancienne version mono-joueur si présente
+  try {
+    const old = localStorage.getItem("nes_suivi_joueur_v1");
+    if (old) {
+      const op = JSON.parse(old);
+      if (op && (op.name || (op.reports && op.reports.length))) {
+        const np = emptyPlayer(op.name);
+        Object.assign(np, op, { id: np.id });
+        store = { players: [np], activeId: np.id };
+        return;
+      }
+    }
+  } catch(e) {}
+  store = { players: [], activeId: null };
+}
+
+let saveTimeout = null;
+function persist() {
+  const ind = document.getElementById("saveIndicator");
+  if (ind) { ind.textContent = "..."; ind.className = "save-indicator"; }
+  clearTimeout(saveTimeout);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    saveTimeout = setTimeout(() => {
+      if (ind) { ind.textContent = "✓ enregistré"; ind.className = "save-indicator saved"; }
+      setTimeout(() => { if (ind) ind.textContent = ""; }, 1500);
+    }, 150);
+  } catch(e) {
+    if (ind) { ind.textContent = "erreur"; ind.className = "save-indicator error"; }
+  }
+}
+
+/* ================== MATH HELPERS ================== */
+function avg(obj) {
+  const valid = Object.values(obj).filter(v => v !== "" && v !== null && v !== undefined).map(Number).filter(n => !isNaN(n));
+  if (valid.length === 0) return null;
+  return valid.reduce((a,b) => a+b, 0) / valid.length;
+}
+function noteGlobale(r) {
+  const groups = ["technique","tactique","physique","influence"];
+  const avgs = groups.map(g => avg(r[g])).filter(v => v !== null);
+  if (avgs.length === 0) return null;
+  return avgs.reduce((a,b)=>a+b,0) / avgs.length;
+}
+function tauxExploitation(r) {
+  const obs = Number(r.signatureObservees), exp = Number(r.signatureExploitees);
+  if (!obs || !exp) return null;
+  return Math.round((exp/obs)*100);
+}
+function parseDateStr(d) {
+  if (!d) return new Date(0);
+  if (d.includes("/")) { const [dd,mm,yyyy] = d.split("/").map(Number); return new Date(yyyy||0, (mm||1)-1, dd||1); }
+  return new Date(d);
+}
+function sortedReportsOf(p) { return [...p.reports].sort((a,b) => parseDateStr(a.matchDate) - parseDateStr(b.matchDate)); }
+function esc(s) { return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function todayFr() { const d = new Date(); return String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")+"/"+d.getFullYear(); }
+
+/* ================== RENDER: ROOT ================== */
+function render() {
+  document.getElementById("tabSaisieBtn").classList.toggle("active", currentView === "saisie");
+  document.getElementById("tabSyntheseBtn").classList.toggle("active", currentView === "synthese");
+  renderPlayerSelect();
+
+  // Ces deux contrôles doivent toujours fonctionner, même quand aucun joueur n'existe encore.
+  document.getElementById("playerSelect").onchange = (e) => {
+    store.activeId = e.target.value;
+    openReportIds = new Set();
+    persist(); render();
+  };
+  document.getElementById("newPlayerBtn").onclick = showNewPlayerModal;
+
+  const el = document.getElementById("container");
+  const p = activePlayer();
+  if (!p) {
+    el.innerHTML = `<div class="empty-state" style="margin-top:20px;">
+      <p>Aucun joueur enregistré.</p>
+      <p class="small">Clique sur "+ Joueur" pour créer une première fiche.</p>
+    </div>`;
+    return;
+  }
+  el.innerHTML = currentView === "saisie" ? renderSaisie(p) : renderSynthese(p);
+  attachHandlers(p);
+  if (currentView === "synthese") {
+    sheetActive = true;
+    requestAnimationFrame(() => drawSheetChart(p));
+  } else {
+    sheetActive = false;
+  }
+}
+
+function renderPlayerSelect() {
+  const sel = document.getElementById("playerSelect");
+  if (store.players.length === 0) {
+    sel.innerHTML = `<option>Aucun joueur</option>`;
+    sel.disabled = true;
+    return;
+  }
+  sel.disabled = false;
+  sel.innerHTML = store.players.map(p => `<option value="${p.id}" ${p.id===store.activeId?"selected":""}>${esc(p.name) || "Sans nom"}</option>`).join("");
+}
+
+function setView(v) { currentView = v; render(); }
+window.setView = setView;
+
+/* ================== NEW PLAYER MODAL ================== */
+function showNewPlayerModal() {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <h3>Nouveau joueur</h3>
+      <label class="field"><span>Nom du joueur</span>
+        <input type="text" id="newPlayerName" placeholder="Ex. Samba Diop" autofocus>
+      </label>
+      <div class="modal-actions">
+        <button class="btn btn-outline" id="cancelNewPlayer">Annuler</button>
+        <button class="btn" id="confirmNewPlayer">Créer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const input = document.getElementById("newPlayerName");
+  input.focus();
+  const close = () => overlay.remove();
+  document.getElementById("cancelNewPlayer").addEventListener("click", close);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  const confirmCreate = () => {
+    const name = input.value.trim();
+    const np = emptyPlayer(name);
+    store.players.push(np);
+    store.activeId = np.id;
+    openReportIds = new Set();
+    currentView = "saisie";
+    persist(); render(); close();
+  };
+  document.getElementById("confirmNewPlayer").addEventListener("click", confirmCreate);
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") confirmCreate(); });
+}
+
+/* ================== RENDER: SAISIE ================== */
+function renderSaisie(p) {
+  let html = `
+  <div class="card">
+    <p class="section-title">Profil joueur</p>
+    <div class="grid-3">
+      ${textField("p_name","Nom", p.name, "Nom du joueur")}
+      ${textField("p_age","Âge", p.age, "18")}
+      ${textField("p_nat","Nationalité", p.nationalite, "—")}
+      ${textField("p_club","Club", p.club, "—")}
+      ${textField("p_poste","Poste", p.poste, "AD, MC...")}
+      ${textField("p_pied","Pied fort", p.piedFort, "Gauche/Droit")}
+    </div>
+  </div>`;
+
+  html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-top:20px;">
+    <p class="section-title" style="margin:0;">Rapports (${p.reports.length}/3)</p>
+    <button class="btn" id="addReportBtn" ${p.reports.length >= 3 ? "disabled" : ""}>+ Ajouter un rapport</button>
+  </div>`;
+
+  if (p.reports.length === 0) {
+    html += `<div class="empty-state" style="margin-top:12px;">
+      <p>Aucun rapport pour l'instant.</p>
+      <p class="small">Clique sur "Ajouter un rapport" pour commencer la saisie.</p>
+    </div>`;
+  } else {
+    p.reports.forEach((r, i) => { html += renderReportCard(r, i, p.reports.length); });
+    if (p.reports.length >= 3) html += `<p class="max-note">Maximum de 3 rapports atteint. Supprime un rapport pour en ajouter un nouveau.</p>`;
+  }
+
+  html += `<div class="reset-row"><button class="reset-link" id="resetBtn">Supprimer ce joueur et toutes ses données</button></div>`;
+  return html;
+}
+
+function textField(id, label, value, placeholder) {
+  return `<label class="field"><span>${esc(label)}</span><input type="text" id="${id}" value="${esc(value)}" placeholder="${esc(placeholder||"")}"></label>`;
+}
+function numRow(id, label, value, max) {
+  return `<div class="num-row"><span>${esc(label)}</span><input type="number" id="${id}" min="0" max="${max||10}" step="0.5" value="${esc(value)}" placeholder="—"></div>`;
+}
+
+function renderReportCard(r, index, total) {
+  const ng = noteGlobale(r);
+  const isOpen = openReportIds.has(r.id) || total === 1;
+  let body = "";
+  if (isOpen) {
+    body += `<div class="report-body">
+      <div class="grid-2" style="margin-top:14px;">
+        ${textField(`r_${r.id}_matchDate`, "Date du match", r.matchDate, "jj/mm/aaaa")}
+        ${textField(`r_${r.id}_matchLabel`, "Match observé", r.matchLabel, "Équipe A vs Équipe B")}
+      </div>`;
+    Object.entries(FIELD_GROUPS).forEach(([gkey, group]) => {
+      const groupAvg = avg(r[gkey]);
+      body += `<div class="group-box">
+        <div class="group-head">
+          <span class="label"><span class="dot" style="background:${group.color}"></span>${group.label}</span>
+          <span class="avg">moy. ${groupAvg !== null ? groupAvg.toFixed(1) : "—"}</span>
+        </div>
+        <div class="field-cols">${group.fields.map(([k,label]) => numRow(`r_${r.id}_${gkey}_${k}`, label, r[gkey][k])).join("")}</div>
+      </div>`;
+    });
+    body += `<div class="group-box">
+      <div class="group-head"><span class="label">Profil Y.E.S.I View (notes /10)</span></div>
+      <div class="field-cols">${YESI_FIELDS.map(([k,label]) => numRow(`r_${r.id}_yesi_${k}`, label, r.yesi[k])).join("")}</div>
+    </div>`;
+    body += `<div class="group-box">
+      <div class="group-head"><span class="label">Signature N.E.S</span></div>
+      <div class="grid-2">
+        ${numRow(`r_${r.id}_sigObs`, "Qualités observées", r.signatureObservees, 20)}
+        ${numRow(`r_${r.id}_sigExp`, "Qualités exploitées", r.signatureExploitees, 20)}
+      </div>
+    </div>`;
+    body += `<div style="margin-top:12px;"><label class="field"><span>Élément marquant (citation du scout)</span>
+      <textarea class="note-input" id="r_${r.id}_citation" rows="2" placeholder="« ... »">${esc(r.citation)}</textarea>
+    </label></div>`;
+    body += `<div style="margin-top:10px;"><label class="field"><span>Observation libre</span>
+      <textarea class="note-input" id="r_${r.id}_obsLibre" rows="2" placeholder="Notes libres">${esc(r.observationLibre)}</textarea>
+    </label></div>`;
+    body += `</div>`;
+  }
+  return `<div class="report-card" data-report-id="${r.id}">
+    <button class="report-head" data-toggle="${r.id}">
+      <div class="report-head-left">
+        <span class="report-num">${index+1}</span>
+        <div>
+          <p class="report-head-title">${esc(r.matchLabel) || `Rapport ${index+1}`}</p>
+          <p class="report-head-sub">${r.matchDate ? esc(r.matchDate) : "Date non renseignée"}${ng !== null ? `<span class="ng">· ${ng.toFixed(1)}/10</span>` : ""}</p>
+        </div>
+      </div>
+      <div class="report-head-right">
+        <span class="btn-ghost" data-delete="${r.id}" title="Supprimer">✕</span>
+        <span class="chev">${isOpen ? "▲" : "▼"}</span>
+      </div>
+    </button>
+    ${body}
+  </div>`;
+}
+
+/* ================== HANDLERS ================== */
+function attachHandlers(p) {
+  if (currentView !== "saisie") return;
+
+  bindText("p_name", v => p.name = v);
+  bindText("p_age", v => p.age = v);
+  bindText("p_nat", v => p.nationalite = v);
+  bindText("p_club", v => p.club = v);
+  bindText("p_poste", v => p.poste = v);
+  bindText("p_pied", v => p.piedFort = v);
+
+  const addBtn = document.getElementById("addReportBtn");
+  if (addBtn) addBtn.addEventListener("click", () => {
+    if (p.reports.length >= 3) return;
+    const nr = emptyReport();
+    p.reports.push(nr);
+    openReportIds.add(nr.id);
+    persist(); render();
+  });
+
+  const resetBtn = document.getElementById("resetBtn");
+  if (resetBtn) resetBtn.addEventListener("click", () => {
+    if (!confirm(`Supprimer "${p.name || 'ce joueur'}" et toutes ses données ? Cette action est irréversible.`)) return;
+    store.players = store.players.filter(pl => pl.id !== p.id);
+    store.activeId = store.players.length ? store.players[0].id : null;
+    openReportIds = new Set();
+    persist(); render();
+  });
+
+  document.querySelectorAll("[data-toggle]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-toggle");
+      if (openReportIds.has(id)) openReportIds.delete(id); else openReportIds.add(id);
+      render();
+    });
+  });
+  document.querySelectorAll("[data-delete]").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.getAttribute("data-delete");
+      p.reports = p.reports.filter(r => r.id !== id);
+      openReportIds.delete(id);
+      persist(); render();
+    });
+  });
+
+  p.reports.forEach(r => {
+    bindText(`r_${r.id}_matchDate`, v => r.matchDate = v, true);
+    bindText(`r_${r.id}_matchLabel`, v => r.matchLabel = v, true);
+    bindText(`r_${r.id}_citation`, v => r.citation = v, true);
+    bindText(`r_${r.id}_obsLibre`, v => r.observationLibre = v, true);
+    bindText(`r_${r.id}_sigObs`, v => r.signatureObservees = v, true);
+    bindText(`r_${r.id}_sigExp`, v => r.signatureExploitees = v, true);
+    Object.entries(FIELD_GROUPS).forEach(([gkey, group]) => {
+      group.fields.forEach(([k]) => bindNumber(`r_${r.id}_${gkey}_${k}`, v => r[gkey][k] = v, true));
+    });
+    YESI_FIELDS.forEach(([k]) => bindNumber(`r_${r.id}_yesi_${k}`, v => r.yesi[k] = v, true));
+  });
+}
+
+function bindText(id, setter, livePartial) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener("input", () => { setter(el.value); persist(); if (livePartial) updateLiveLabels(); });
+}
+function bindNumber(id, setter, livePartial) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener("input", () => { setter(el.value); persist(); if (livePartial) updateLiveLabels(); });
+}
+function updateLiveLabels() {
+  const active = document.activeElement;
+  const activeId = active && active.id;
+  const selStart = active && active.selectionStart;
+  const selEnd = active && active.selectionEnd;
+  render();
+  if (activeId) {
+    const el = document.getElementById(activeId);
+    if (el) { el.focus(); if (selStart !== undefined && el.setSelectionRange) { try { el.setSelectionRange(selStart, selEnd); } catch(e){} } }
+  }
+}
+
+/* ================== RENDER: SYNTHÈSE (= fiche export) ================== */
+function renderSynthese(p) {
+  return `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
+      <p class="section-title" style="margin:0;">Fiche de synthèse N.E.S</p>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-outline" id="openSheetBtn">⤢ Ouvrir la fiche</button>
+        <button class="btn" id="exportPdfBtn">⭳ Export PDF</button>
+      </div>
+    </div>
+    <div class="sheet-wrap active" id="sheetWrap">${buildSheet(p)}</div>
+  `;
+}
+
+/* ================== OUVRIR LA FICHE (HTML standalone, fond garanti) ================== */
+function openSheetStandalone(p) {
+  const styleTag = document.querySelector("style").outerHTML;
+  const scriptContent = document.querySelector("script").innerHTML;
+  const playerJson = JSON.stringify(p).replace(/<\/script/gi, "<\\/script");
+
+  const doc = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fiche N.E.S — ${esc(p.name) || "Joueur"}</title>
+${styleTag}
+<style>
+  body { background: #0a0e0c; padding: 24px 12px; }
+  .standalone-toolbar { max-width: 1080px; margin: 0 auto 16px; display: flex; justify-content: flex-end; gap: 8px; }
+  @media print { .standalone-toolbar { display: none !important; } }
+</style>
+</head>
+<body>
+  <div class="standalone-toolbar">
+    <button class="btn" id="standaloneExportBtn">⭳ Export PDF</button>
+  </div>
+  <div class="sheet-wrap active" id="standaloneSheetWrap"></div>
+  <script>window.__STANDALONE_PLAYER__ = ${playerJson};<\/script>
+  <script>${scriptContent.replace(/<\/script/gi, "<\\/script")}<\/script>
+</body>
+</html>`;
+  const blob = new Blob([doc], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank");
+}
+
+function buildSheet(p) {
+  const sorted = sortedReportsOf(p);
+  if (sorted.length === 0) {
+    return `<div class="sheet"><div class="empty-state"><p>Pas encore de rapport pour ce joueur.</p>
+      <p class="small"><a href="#" onclick="setView('saisie');return false;" style="color:#10b981;">Aller à la saisie →</a></p></div></div>`;
+  }
+  const globalValues = sorted.map(noteGlobale);
+  const lastNg = globalValues[globalValues.length-1];
+  const firstNg = globalValues[0];
+  const potentiel = lastNg !== null ? Math.min(10, lastNg + 2) : null; // estimation cohérente avec l'écart de projection N.E.S habituel (+2.0)
+  const progression = (lastNg !== null && firstNg !== null) ? +(lastNg - firstNg).toFixed(1) : null;
+
+  const stab = computeStability(globalValues);
+  const lastReport = sorted[sorted.length-1];
+  const taux = tauxExploitation(lastReport);
+
+  return `
+  <div class="sheet">
+    <div class="sheet-header">
+      <div class="sheet-brand">
+        <div class="sheet-brand-icon">N</div>
+        <div>
+          <h2>N.E.S <span>VISION</span></h2>
+          <p>FICHE DE SYNTHÈSE — SCOUTING N.E.S + Y.E.S.I VIEW</p>
+        </div>
+      </div>
+      <div class="sheet-meta">
+        <div class="sheet-meta-item">Date d'analyse<div>${todayFr()}</div></div>
+        <div class="sheet-meta-item">Joueur<div>${esc(p.name).toUpperCase() || "—"}</div></div>
+        <div class="sheet-meta-item">Rapports intégrés<div>${sorted.map((_,i)=>"R"+(i+1)).join(" & ")}</div></div>
+      </div>
+    </div>
+
+    <div class="sheet-grid">
+      <!-- Colonne 1 : profil -->
+      <div class="sheet-box">
+        <div class="sheet-photo"><span>${initials(p.name)}</span></div>
+        <p class="sheet-player-name">${esc(p.name).toUpperCase() || "JOUEUR SANS NOM"}</p>
+        <div style="margin-top:8px;">
+          ${sheetProfileRow("⚽", "POSTE", p.poste || "—")}
+          ${sheetProfileRow("🏟", "CLUB", p.club || "—")}
+          ${sheetProfileRow("📅", "ÂGE", p.age ? p.age+" ans" : "—")}
+          ${sheetProfileRow("🌍", "NATIONALITÉ", p.nationalite || "—")}
+          ${sheetProfileRow("👟", "PIED FORT", p.piedFort || "—")}
+        </div>
+        <div class="sheet-note-block">
+          <p class="lbl">Note globale N.E.S</p>
+          <span class="big">${lastNg!==null?lastNg.toFixed(1):"—"}</span><span class="of10">/10</span>
+        </div>
+      </div>
+
+      <!-- Colonne 2 : évolution + composantes -->
+      <div>
+        <div class="sheet-box">
+          <p class="sheet-box-title"><span class="ic">📈</span>Évolution de la note globale N.E.S</p>
+          <div class="sheet-chart-row">
+            <div class="sheet-chart-canvas-wrap"><canvas id="sheetChart" width="600" height="190" style="width:100%;display:block;"></canvas></div>
+            <div class="sheet-chart-side">
+              <p class="lbl">Progression</p>
+              <p class="val ${progression!==null && progression>0 ? 'green':''}">${progression!==null ? (progression>0?'+':'')+progression.toFixed(1) : '—'}</p>
+              <p class="lbl">Tendance</p>
+              <p class="tendance">${trendLabel(progression)}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="sheet-box sheet-row-gap">
+          <p class="sheet-box-title"><span class="ic">📊</span>Évolution des 4 piliers N.E.S</p>
+          <table class="sheet-table">
+            <thead><tr><th>Pilier</th>${sorted.map((r,i)=>`<th>R${i+1}</th>`).join("")}<th>Évolution</th></tr></thead>
+            <tbody>
+              ${Object.entries(FIELD_GROUPS).map(([gkey,group]) => {
+                const vals = sorted.map(r => avg(r[gkey]));
+                const first = vals[0], last = vals[vals.length-1];
+                return `<tr>
+                  <td class="name"><span class="dot" style="background:${group.color}"></span>${group.label}</td>
+                  ${vals.map(v => `<td>${v!==null?v.toFixed(1):"—"}</td>`).join("")}
+                  <td>${evoCell(first,last)}</td>
+                </tr>`;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Colonne 3 : statut + indice -->
+      <div class="sheet-box">
+        <p class="sheet-box-title"><span class="ic">●</span>Statut N.E.S</p>
+        <p class="sheet-status-pill" style="color:${stab.color};">${stab.label}</p>
+        <p class="sheet-status-desc">${stab.desc}</p>
+        <div class="sheet-index-block">
+          <p class="lbl">Indice de constance</p>
+          <p class="num">${stab.index}<span style="font-size:14px;color:#71717a;">/100</span></p>
+          <p class="stars">${starString(stab.index)}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sheet-cols-2-1 sheet-row-gap">
+      <div class="sheet-box">
+        <p class="sheet-box-title"><span class="ic">✓</span>Qualités fortes identifiées</p>
+        <ul class="sheet-list good">
+          ${qualitiesList(lastReport).map(q => `<li><span class="b">✓</span>${esc(q)}</li>`).join("") || `<li><span class="b">·</span>Aucune qualité forte renseignée</li>`}
+        </ul>
+      </div>
+      <div class="sheet-box">
+        <p class="sheet-box-title"><span class="ic">◐</span>Taux d'exploitation</p>
+        <div style="text-align:center; padding: 6px 0;">
+          <p style="font-size:30px; font-weight:800; color:#10b981; margin:4px 0;">${taux!==null?taux+"%":"—"}</p>
+          <p class="sheet-final-desc">Qualités exploitées par rapport aux qualités observées sur le dernier rapport intégré.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sheet-cols-2-1 sheet-row-gap">
+      <div class="sheet-box">
+        <p class="sheet-box-title"><span class="ic">🎯</span>Projection N.E.S</p>
+        ${projRow("Niveau actuel", lastNg)}
+        ${projRow("Potentiel estimé", potentiel)}
+        <div class="sheet-proj-row"><span class="lbl">Marge de progression</span><span class="num" style="color:#10b981;">${(lastNg!==null&&potentiel!==null)?"+"+(potentiel-lastNg).toFixed(1):"—"}</span></div>
+      </div>
+      <div class="sheet-box">
+        <p class="sheet-box-title"><span class="ic">★</span>Avis final N.E.S</p>
+        <div class="sheet-final-pill">${finalAvis(lastNg).icon} ${finalAvis(lastNg).label}</div>
+        <p class="sheet-final-desc">${finalAvis(lastNg).desc}</p>
+      </div>
+    </div>
+
+    ${lastReport.citation || lastReport.observationLibre ? `
+    <div class="sheet-box sheet-row-gap">
+      <p class="sheet-box-title"><span class="ic">"</span>Vision du scout</p>
+      <p class="sheet-quote"><span class="qmark">«</span> ${esc(lastReport.citation || lastReport.observationLibre)} <span class="qmark">»</span></p>
+    </div>` : ""}
+
+    <div class="sheet-footer">Y.E.S.I CONCEPT — N.E.S SCOUTING METHOD</div>
+  </div>
+  `;
+}
+
+function initials(name) {
+  if (!name) return "?";
+  return name.trim().split(/\s+/).map(w=>w[0]).join("").slice(0,2).toUpperCase();
+}
+function sheetProfileRow(icon, k, v) {
+  return `<div class="sheet-profile-row"><span class="k">${icon} ${esc(k)}</span><span class="v">${esc(v)}</span></div>`;
+}
+function trendLabel(progression) {
+  if (progression === null) return "—";
+  if (progression > 0) return "↗ POSITIVE";
+  if (progression < 0) return "↘ NÉGATIVE";
+  return "→ STABLE";
+}
+function evoCell(first, last) {
+  if (first === null || last === null) return `<span class="sheet-evo-flat">—</span>`;
+  const d = +(last-first).toFixed(1);
+  if (d === 0) return `<span class="sheet-evo-flat">→ stable</span>`;
+  if (d > 0) return `<span class="sheet-evo-up">↗ +${d}</span>`;
+  return `<span class="sheet-evo-down">↘ ${d}</span>`;
+}
+function computeStability(values) {
+  const v = values.filter(x => x !== null && x !== undefined);
+  if (v.length < 2) return { label:"DONNÉES INSUFFISANTES", color:"#71717a", desc:"Ajoute au moins 2 rapports pour évaluer la régularité du joueur.", index: 0 };
+  const mean = v.reduce((a,b)=>a+b,0)/v.length;
+  const variance = v.reduce((a,b)=>a+(b-mean)**2,0)/v.length;
+  const std = Math.sqrt(variance);
+  const index = Math.max(0, Math.round(100 - std*40));
+  if (std === 0) return { label:"PARFAITEMENT RÉGULIER", color:"#10b981", desc:"Aucune variation entre les observations — constance totale du joueur sur la période évaluée.", index };
+  if (std < 0.3) return { label:"TRÈS RÉGULIER", color:"#10b981", desc:"Très faible variation — le joueur livre un niveau stable d'un match à l'autre.", index };
+  if (std < 0.7) return { label:"RÉGULIER", color:"#84cc16", desc:"Variation modérée — la performance reste cohérente dans le temps.", index };
+  if (std < 1.2) return { label:"IRRÉGULIER", color:"#f59e0b", desc:"Variation notable — le niveau fluctue sensiblement selon les matchs.", index };
+  return { label:"TRÈS IRRÉGULIER", color:"#f43f5e", desc:"Forte variation — la performance du joueur n'est pas encore stabilisée.", index };
+}
+function starString(index) {
+  const filled = Math.round(index/20);
+  return "★".repeat(filled) + "☆".repeat(5-filled);
+}
+function qualitiesList(report) {
+  // Dérive les qualités fortes à partir des sous-critères notés >= 7.5
+  const labels = [];
+  Object.entries(FIELD_GROUPS).forEach(([gkey, group]) => {
+    group.fields.forEach(([k,label]) => {
+      const v = Number(report[gkey][k]);
+      if (!isNaN(v) && v >= 7.5) labels.push(label);
+    });
+  });
+  return labels.slice(0, 6);
+}
+function projRow(label, val) {
+  const pct = val !== null ? Math.min(100, (val/10)*100) : 0;
+  return `<div class="sheet-proj-row">
+    <span class="lbl">${esc(label)}</span>
+    <div class="barwrap"><div style="width:${pct}%"></div></div>
+    <span class="num">${val!==null?val.toFixed(1):"—"}/10</span>
+  </div>`;
+}
+function finalAvis(ng) {
+  if (ng === null) return { icon:"○", label:"À ÉVALUER", desc:"Complète au moins un rapport pour obtenir un avis." };
+  if (ng >= 8) return { icon:"★", label:"PROFIL ÉLITE", desc:"Le joueur présente un profil au-dessus du niveau standard, à suivre en priorité." };
+  if (ng >= 7) return { icon:"★", label:"RECOMMANDÉ", desc:"Profil solide avec de bonnes bases. Le joueur mérite un suivi rapproché pour confirmer sa progression." };
+  if (ng >= 5.5) return { icon:"◐", label:"À SUIVRE", desc:"Profil en construction, qualités identifiées mais à confirmer sur davantage d'observations." };
+  return { icon:"○", label:"NON PRIORITAIRE", desc:"Le profil actuel ne présente pas suffisamment de garanties à ce stade de l'observation." };
+}
+
+/* ================== CANVAS: mini line chart (fiche) ================== */
+function drawSheetChart(p) {
+  const canvas = document.getElementById("sheetChart");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth || 600, h = 190;
+  canvas.width = w*dpr; canvas.height = h*dpr;
+  ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,w,h);
+
+  const sorted = sortedReportsOf(p);
+  const values = sorted.map(noteGlobale);
+  // Marge haute généreuse pour laisser la place à l'étiquette de valeur au-dessus du point le plus haut
+  const pad = { l: 28, r: 14, t: 26, b: 22 };
+  const plotW = w-pad.l-pad.r, plotH = h-pad.t-pad.b;
+
+  // Grille horizontale + repères Y
+  ctx.strokeStyle = "#e4e4e7"; ctx.lineWidth = 1;
+  ctx.font = "9px -apple-system, sans-serif"; ctx.fillStyle = "#71717a";
+  for (let i=0;i<=5;i++) {
+    const val = i*2;
+    const y = pad.t + plotH - (val/10)*plotH;
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(w-pad.r,y); ctx.stroke();
+    ctx.textAlign = "right"; ctx.fillText(val, pad.l-6, y+3);
+  }
+
+  const n = sorted.length;
+  const xStep = n>1 ? plotW/(n-1) : 0;
+  const xPos = i => n>1 ? pad.l+i*xStep : pad.l+plotW/2;
+
+  // Labels d'axe X courts : R1, R2, R3 (la date complète est déjà visible dans le tableau des piliers)
+  ctx.textAlign = "center"; ctx.font = "10px -apple-system, sans-serif"; ctx.fillStyle = "#52525b";
+  sorted.forEach((r,i) => {
+    ctx.fillText(`R${i+1}`, xPos(i), h-7);
+  });
+
+  const pts = values.map((v,i) => v===null?null:{x:xPos(i), y: pad.t+plotH-(v/10)*plotH, val:v});
+
+  // Ligne
+  ctx.beginPath(); ctx.strokeStyle = "#059669"; ctx.lineWidth = 3;
+  let started=false;
+  pts.forEach(pt => { if (!pt) return; if(!started){ctx.moveTo(pt.x,pt.y);started=true;}else{ctx.lineTo(pt.x,pt.y);} });
+  ctx.stroke();
+
+  // Points + valeur au-dessus (jamais hors-cadre grâce à pad.t élargi)
+  pts.forEach(pt => {
+    if (!pt) return;
+    ctx.beginPath(); ctx.fillStyle="#059669"; ctx.arc(pt.x,pt.y,4.5,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle="#18181b"; ctx.font="bold 11px -apple-system, sans-serif"; ctx.textAlign="center";
+    const labelY = Math.max(12, pt.y-11);
+    ctx.fillText(pt.val.toFixed(1), pt.x, labelY);
+  });
+}
+
+/* ================== EXPORT PDF (print) ================== */
+// Mesure la fiche et applique une échelle si besoin pour qu'elle tienne sur une seule page A4 paysage, sans jamais être coupée.
+function prepareSheetForPrint() {
+  const wrap = document.getElementById("sheetWrap");
+  if (!wrap) return;
+  // Plus de scale automatique (source d'instabilité selon l'orientation réelle du navigateur).
+  // On laisse simplement la fiche à sa taille naturelle ; les règles "page-break-inside: avoid"
+  // garantissent qu'aucun bloc n'est jamais coupé en plein milieu. Si le contenu est volumineux,
+  // l'impression se fera sur 2 pages plutôt qu'une seule abîmée — c'est le compromis demandé.
+  wrap.classList.add("print-fit");
+}
+
+function resetSheetPrintStyles() {
+  const wrap = document.getElementById("sheetWrap");
+  const sheet = document.querySelector(".sheet-wrap .sheet");
+  if (wrap) wrap.classList.remove("print-fit");
+  if (sheet) { sheet.style.transform = ""; sheet.style.width = ""; }
+}
+
+window.addEventListener("beforeprint", prepareSheetForPrint);
+window.addEventListener("afterprint", resetSheetPrintStyles);
+
+document.addEventListener("click", (e) => {
+  if (e.target && e.target.id === "exportPdfBtn") {
+    prepareSheetForPrint();
+    window.print();
+  }
+  if (e.target && e.target.id === "openSheetBtn") {
+    const p = activePlayer();
+    if (p) openSheetStandalone(p);
+  }
+});
+
+/* ================== INIT ================== */
+if (window.__STANDALONE_PLAYER__) {
+  // Mode fenêtre standalone "Ouvrir la fiche" : on affiche uniquement la fiche
+  // d'un joueur donné, sans le reste de l'app (saisie, sélecteur, etc.).
+  const p = window.__STANDALONE_PLAYER__;
+  document.getElementById("standaloneSheetWrap").innerHTML = buildSheet(p);
+  requestAnimationFrame(() => {
+    drawSheetChart(p);
+    const exportBtn = document.getElementById("standaloneExportBtn");
+    if (exportBtn) {
+      exportBtn.addEventListener("click", () => {
+        prepareSheetForPrintStandalone();
+        window.print();
+      });
+    }
+  });
+  window.addEventListener("beforeprint", prepareSheetForPrintStandalone);
+  window.addEventListener("afterprint", resetSheetPrintStyles);
+} else {
+  loadStore();
+  if (!store.activeId && store.players.length) store.activeId = store.players[0].id;
+  render();
+  window.addEventListener("resize", () => { if (currentView === "synthese") { const p = activePlayer(); if (p) drawSheetChart(p); } });
+}
+
+// Variante de prepareSheetForPrint utilisable même quand #sheetWrap n'existe pas (mode standalone,
+// l'id est différent : #standaloneSheetWrap).
+function prepareSheetForPrintStandalone() {
+  const wrap = document.getElementById("standaloneSheetWrap");
+  if (!wrap) return;
+  wrap.classList.add("print-fit");
+}
+</script>
+
+</body>
+</html>
